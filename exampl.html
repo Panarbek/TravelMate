@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.css' rel='stylesheet' />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Astana Map with ChatGPT Assistant</title>
+    <style>
+        /* styles.css */
+
+/* Подключение шрифта Poppins */
+body {
+    font-family: 'Poppins', sans-serif;
+    display: flex;
+    height: 100vh;
+    font-weight: 400;
+}
+
+/* Основные сбросы */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Контейнер для карты */
+#map-container {
+    flex: 0 0 70%;
+    height: 100%;
+    position: relative;
+}
+
+#map {
+    width: 100%;
+    height: 100%;
+}
+
+/* Контейнер для чата */
+#chat-container {
+    flex: 0 0 30%;
+    display: flex;
+    flex-direction: column;
+    padding: 15px;
+    background-color: #f4f4f9;
+    border-left: 1px solid #ddd;
+}
+
+#chat-header {
+    font-weight: 600;
+    padding: 10px;
+    background-color: #0078aa;
+    color: white;
+    text-align: center;
+    font-size: 1.2em;
+}
+
+#chat-messages {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 15px;
+    background-color: #ffffff;
+    border: 1px solid #ddd;
+    margin: 10px 0;
+    border-radius: 5px;
+}
+
+/* Стиль для каждого сообщения */
+#chat-messages div {
+    margin-bottom: 10px;
+    padding: 8px;
+    border-radius: 5px;
+}
+
+#chat-messages .user-message {
+    background-color: #e1f5fe;
+    align-self: flex-start;
+}
+
+#chat-messages .ai-message {
+    background-color: #e8f5e9;
+    align-self: flex-end;
+}
+
+/* Контейнер для поля ввода и кнопки */
+#chat-input-container {
+    display: flex;
+    gap: 10px;
+}
+
+#chat-input {
+    flex-grow: 1;
+    padding: 15px; /* Увеличенный размер поля ввода */
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 1em; /* Увеличенный размер текста */
+}
+
+#send-btn {
+    padding: 15px 20px; /* Увеличенный размер кнопки */
+    background-color: #0078aa;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: 600;
+    font-family: 'Poppins', sans-serif;
+}
+
+#send-btn:hover {
+    background-color: #005f88;
+}
+
+    </style>
+</head>
+<body>
+    <!-- Map container -->
+    <div id="map-container">
+        <div id="map"></div>
+    </div>
+
+    <!-- Chat container -->
+    <div id="chat-container">
+        <div id="chat-header">TravelMate</div>
+        <div id="chat-messages"></div>
+        <div id="chat-input-container">
+            <input type="text" id="chat-input" placeholder="Type your message here..." />
+            <button id="send-btn">Send</button>
+        </div>
+    </div>
+
+    <script>
+        mapboxgl.accessToken = 'pk.eyJ1IjoiZGF1bGV0YWkiLCJhIjoiY20xeHJhcHp4MHZ0NDJxczd4eDl0ZXRweCJ9.-pVtWevkCMxjYOl5EUd0iQ';
+
+        // Initialize the map centered on Astana
+        var map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/streets-v11',
+            center: [71.42893812222222, 51.101870605224164], // General center for Astana
+            zoom: 13,
+            pitch: 45, // Tilt for 3D view
+            bearing: -17.6 // Bearing for 3D angle
+        });
+
+        // Add 3D terrain and buildings
+        map.on('load', () => {
+            map.addSource('mapbox-dem', {
+                'type': 'raster-dem',
+                'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
+                'tileSize': 512,
+                'maxzoom': 14
+            });
+            map.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.5 });
+
+            map.addLayer({
+                'id': '3d-buildings',
+                'source': 'composite',
+                'source-layer': 'building',
+                'filter': ['==', 'extrude', 'true'],
+                'type': 'fill-extrusion',
+                'minzoom': 15,
+                'paint': {
+                    'fill-extrusion-color': '#aaa',
+                    'fill-extrusion-height': [
+                        'interpolate', ['linear'], ['zoom'],
+                        15, 0,
+                        15.05, ['get', 'height']
+                    ],
+                    'fill-extrusion-base': [
+                        'interpolate', ['linear'], ['zoom'],
+                        15, 0,
+                        15.05, ['get', 'min_height']
+                    ],
+                    'fill-extrusion-opacity': 0.6
+                }
+            });
+        });
+
+        // Landmarks array for markers with descriptions
+        const landmarks = [
+            { 
+                name: 'Baiterek Tower', 
+                coordinates: [71.43033727328441, 51.12821431058062],
+                info: 'Baiterek Tower symbolizes the "tree of life".',
+                imageUrl: 'https://cdn.filestackcontent.com/LuSQmnbTSgCIcm3Uiuo9'
+            },
+            { 
+                name: 'Akmeshit Mosque', 
+                coordinates: [71.41066172945382, 51.073135432231375],
+                info: 'A stunning mosque with white architecture.',
+                imageUrl: 'https://www.muftyat.kz/media/muftyat/Бас_мақала_vfJRW31.jpg'
+            },
+            { 
+                name: 'Expo Center', 
+                coordinates: [71.41606995378257, 51.08945110112012],
+                info: 'Built for the Astana Expo 2017.',
+                imageUrl: 'https://avatars.mds.yandex.net/i?id=0a993b3b867677ededfd11b3eb55606f_l-5235299-images-thumbs&n=13'
+            },
+            { 
+                name: 'Akorda', 
+                coordinates: [71.44617960414836, 51.125881520207145],
+                info: 'The official residence of the President of Kazakhstan.',
+                imageUrl: 'https://time.kz/files/000/022/_j-Z-ALlXJ285.jpg'
+            },
+            { 
+                name: 'President center', 
+                coordinates: [71.44226325259051, 51.114476051561695],
+                info: 'Dedicated to Kazakhstan\'s president, includes small museum history of Kazakhstan.',
+                imageUrl: 'https://fsd.multiurok.ru/html/2017/03/25/s_58d679d7d1778/595425_2.jpeg'
+            }
+        ];
+
+        landmarks.forEach((landmark) => {
+            new mapboxgl.Marker()
+                .setLngLat(landmark.coordinates)
+                .setPopup(new mapboxgl.Popup().setHTML(`
+                    <div style="text-align:center;">
+                        <strong>${landmark.name}</strong><br>
+                        <img src="${landmark.imageUrl}" alt="${landmark.name}" style="width:100%; height:auto; border-radius:8px; margin-top:8px;"><br>
+                        <p>${landmark.info}</p>
+                    </div>
+                `))
+                .addTo(map);
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+    // Приветственное сообщение
+    const chatMessages = document.getElementById('chat-messages');
+    const welcomeMessage = document.createElement('div');
+    welcomeMessage.textContent = 'Привет! Меня зовут TravelMate, добро пожаловать в Астану, столицу Республики Казахстан.';
+    chatMessages.appendChild(welcomeMessage);
+    });
+
+    document.getElementById('send-btn').addEventListener('click', async () => {
+        const chatInput = document.getElementById('chat-input');
+        const message = chatInput.value.trim();
+        if (!message) return;
+
+        // Отображение сообщения пользователя
+        const chatMessages = document.getElementById('chat-messages');
+        const userMessage = document.createElement('div');
+        userMessage.textContent = `Вы: ${message}`;
+        chatMessages.appendChild(userMessage);
+
+        // Очистка поля ввода
+        chatInput.value = '';
+
+        // Показ временного сообщения AI
+        const aiMessage = document.createElement('div');
+        aiMessage.textContent = 'AI: Думаю...';
+        chatMessages.appendChild(aiMessage);
+
+        // Отправка сообщения в OpenAI и получение ответа
+        try {
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer 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` // Замените на ваш реальный API-ключ
+                },
+                body: JSON.stringify({
+                    model: 'gpt-3.5-turbo', // Или другая модель, если требуется
+                    messages: [{ role: 'user', content: message }],
+                    max_tokens: 150
+                })
+            });
+
+            const data = await response.json();
+            const aiResponse = data.choices[0].message.content.trim();
+            aiMessage.textContent = `AI: ${aiResponse}`;
+        } catch (error) {
+            aiMessage.textContent = 'AI: Извините, произошла ошибка при обработке вашего запроса.';
+            console.error('Ошибка:', error);
+        }
+
+        // Прокрутка чата к последнему сообщению
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    });
+
+    </script>
+</body>
+</html>
